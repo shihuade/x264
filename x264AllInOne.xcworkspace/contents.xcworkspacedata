@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "group:AUTHORS">
+   </FileRef>
+   <FileRef
+      location = "group:build">
+   </FileRef>
+   <FileRef
+      location = "group:common">
+   </FileRef>
+   <FileRef
+      location = "group:config.guess">
+   </FileRef>
+   <FileRef
+      location = "group:config.h">
+   </FileRef>
+   <FileRef
+      location = "group:config.log">
+   </FileRef>
+   <FileRef
+      location = "group:config.mak">
+   </FileRef>
+   <FileRef
+      location = "group:config.sub">
+   </FileRef>
+   <FileRef
+      location = "group:configure">
+   </FileRef>
+   <FileRef
+      location = "group:COPYING">
+   </FileRef>
+   <FileRef
+      location = "group:doc">
+   </FileRef>
+   <FileRef
+      location = "group:encoder">
+   </FileRef>
+   <FileRef
+      location = "group:example.c">
+   </FileRef>
+   <FileRef
+      location = "group:extras">
+   </FileRef>
+   <FileRef
+      location = "group:filters">
+   </FileRef>
+   <FileRef
+      location = "group:input">
+   </FileRef>
+   <FileRef
+      location = "group:libx264.a">
+   </FileRef>
+   <FileRef
+      location = "group:Makefile">
+   </FileRef>
+   <FileRef
+      location = "group:output">
+   </FileRef>
+   <FileRef
+      location = "group:README.md">
+   </FileRef>
+   <FileRef
+      location = "group:tools">
+   </FileRef>
+   <FileRef
+      location = "group:version.sh">
+   </FileRef>
+   <FileRef
+      location = "group:x264">
+   </FileRef>
+   <FileRef
+      location = "group:x264_config.h">
+   </FileRef>
+   <FileRef
+      location = "group:x264.c">
+   </FileRef>
+   <FileRef
+      location = "group:x264.h">
+   </FileRef>
+   <FileRef
+      location = "group:x264.o">
+   </FileRef>
+   <FileRef
+      location = "group:x264.pc">
+   </FileRef>
+   <FileRef
+      location = "group:x264AllInOne.xcworkspace">
+   </FileRef>
+   <FileRef
+      location = "group:x264cli.h">
+   </FileRef>
+   <FileRef
+      location = "group:x264dll.c">
+   </FileRef>
+   <FileRef
+      location = "group:x264res.rc">
+   </FileRef>
+</Workspace>
