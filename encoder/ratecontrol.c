@@ -436,32 +436,32 @@ void x264_adaptive_quant_frame( x264_t *h, x264_frame_t *frame, float *quant_off
     }
 }
 
-static void initVBVStatInfo(x264_t* param, TVBVStatic* pVBVStat)
+static int initVBVStatInfo(x264_t* h, x264_ratecontrol_t *rc)
 {
-    memset(pVBVStat, 0, sizeof(TVBVStatic));
+    memset(&rc->sVBVStatic, 0, sizeof(TVBVStatic));
     for (int32_t i = 0; i < 6; i++) {
-        m_iClipSizes[i] = 0;
+       rc->m_iClipSizes[i] = 0;
     }
 
-    if (param->bPreloadAnalyse == false) {
-        return;
+    if (!h->param.rc.b_preload_analyse) {
+        return 0;
     }
 
+    TVBVStatic* pVBVStat = &rc->sVBVStatic;
     int32_t iVBVSizeStep = 200000;
     int32_t iBandwidthStep = 200000;
 
-    pVBVStat->iMinBandWidth = V_CLIP3(200000, 1000000, param->iMinBandWidth * 1000);
-    pVBVStat->iMaxBandWidth = V_CLIP3(4000000, 10000000, param->iMaxBandWidth * 1000);
+    pVBVStat->iMinBandWidth = V_CLIP3(200000, 1000000, h->param.rc.i_min_bandwidth * 1000);
+    pVBVStat->iMaxBandWidth = V_CLIP3(4000000, 10000000, h->param.rc.i_max_bandwidth * 1000);
     pVBVStat->iMaxBandWidth = V_MAX(pVBVStat->iMinBandWidth + 10 * iBandwidthStep, pVBVStat->iMaxBandWidth);
-    pVBVStat->iMaxPreLoadSize = V_CLIP3(pVBVStat->iMaxBandWidth * 4, pVBVStat->iMaxBandWidth * 10, param->iMaxBandWidth * 1000);
+    pVBVStat->iMaxPreLoadSize = V_CLIP3(pVBVStat->iMaxBandWidth * 4, pVBVStat->iMaxBandWidth * 10, h->param.rc.i_max_preload_size * 1000);
     pVBVStat->iNumBandWidth = (pVBVStat->iMaxBandWidth - pVBVStat->iMinBandWidth + iBandwidthStep - 1) / iBandwidthStep + 1;
 
-    //to do, unify with mempool later
-    pVBVStat->iTotalVBV = 0;
-    pVBVStat->pVBVBandWidth = new int32_t [pVBVStat->iNumBandWidth];
-    pVBVStat->pVBVLenNum = new int32_t [pVBVStat->iNumBandWidth];
+    CHECKED_MALLOCZERO( pVBVStat->pVBVBandWidth, pVBVStat->iNumBandWidth * sizeof(int) );
+    CHECKED_MALLOCZERO( pVBVStat->pVBVLenNum, pVBVStat->iNumBandWidth * sizeof(int) );
 
     int32_t iStartSize = 0;
+    pVBVStat->iTotalVBV = 0;
     for (int32_t i = 0; i < pVBVStat->iNumBandWidth; i++) {
         pVBVStat->pVBVBandWidth[i] = pVBVStat->iMinBandWidth + iBandwidthStep * i;
 
@@ -470,13 +470,13 @@ static void initVBVStatInfo(x264_t* param, TVBVStatic* pVBVStat)
         pVBVStat->iTotalVBV += pVBVStat->pVBVLenNum[i];
     }
 
-    pVBVStat->pVBVStatusList = new TVBVStatus [pVBVStat->iTotalVBV];
+    CHECKED_MALLOCZERO( pVBVStat->pVBVStatusList, pVBVStat->iTotalVBV * sizeof(TVBVStatus) );
     memset(pVBVStat->pVBVStatusList, 0, sizeof(TVBVStatus) * pVBVStat->iTotalVBV);
 
     int32_t iIdxOffset = 0;
     int32_t iBufRate = 0;
     double fInitRatio = 1.0;
-    double fFrameRate = V_MAX(0.01, param->frameRate);
+    double fFrameRate = V_MAX(0.01, rc->fps);
     TVBVStatus* pVBV = NULL;
 
     for (int32_t i = 0; i < pVBVStat->iNumBandWidth; i++) {
@@ -489,10 +489,15 @@ static void initVBVStatInfo(x264_t* param, TVBVStatic* pVBVStat)
             pVBV->iVBVMaxBitRate = pVBVStat->pVBVBandWidth[i];
             pVBV->iVBVBufferFill = pVBV->iVBVBufferSize * fInitRatio;
             pVBV->iVBVBufferRate = iBufRate;
-            pVBV->bOverflowFlag = false;
+            pVBV->bOverflowFlag = 0;
         }
         iIdxOffset += pVBVStat->pVBVLenNum[i];
     }
+
+    return 0;
+
+fail:
+    return -1;
 }
 
 static int x264_macroblock_tree_rescale_init( x264_t *h, x264_ratecontrol_t *rc )
