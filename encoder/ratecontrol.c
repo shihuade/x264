@@ -500,6 +500,26 @@ fail:
     return -1;
 }
 
+static void freeVBVStatInfo(x264_ratecontrol_t *rc)
+{
+    TVBVStatic* pVBVStat = &rc->sVBVStatic;
+    if (pVBVStat->pVBVBandWidth) {
+        x264_free( pVBVStat->pVBVBandWidth );
+        pVBVStat->pVBVBandWidth = NULL;
+    }
+
+    if (pVBVStat->pVBVBandWidth) {
+        x264_free( pVBVStat->pVBVLenNum );
+        pVBVStat->pVBVLenNum = NULL;
+    }
+
+    if (pVBVStat->pVBVStatusList) {
+        x264_free( pVBVStat->pVBVStatusList );
+        pVBVStat->pVBVStatusList = NULL;
+    }
+
+}
+
 static int x264_macroblock_tree_rescale_init( x264_t *h, x264_ratecontrol_t *rc )
 {
     /* Use fractional QP array dimensions to compensate for edge padding */
