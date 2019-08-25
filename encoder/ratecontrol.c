@@ -520,6 +520,31 @@ static void freeVBVStatInfo(x264_ratecontrol_t *rc)
 
 }
 
+void OutputVBVStatInfo( x264_t *h, x264_ratecontrol_t *rc )
+{
+    int32_t iIdxOffset = 0;
+    TVBVStatic* pVBVStat = &rc->sVBVStatic;
+    TVBVStatus* pVBV = NULL;
+
+    x264_log( h, X264_LOG_INFO, "VBVMaxBandWidth(kbps)\tMiniPreLoadSize(kbps) \n");
+    for (int32_t i = 0; i < pVBVStat->iNumBandWidth; i++) {
+        for (int32_t j = 0; j < pVBVStat->pVBVLenNum[i]; j++) {
+            pVBV = &pVBVStat->pVBVStatusList[iIdxOffset + j];
+            if (!pVBV->bOverflowFlag) {
+                x264_log( h, X264_LOG_INFO, "\tBW\t%d\t%d \n", pVBVStat->pVBVBandWidth[i] / 1000, pVBV->iVBVBufferSize / 1000);
+                break;
+            }
+        }
+        iIdxOffset += pVBVStat->pVBVLenNum[i];
+    }
+
+    x264_log( h, X264_LOG_INFO, "\tduraion(s)\tvideosize(kbps)");
+    double aDuration[6] = {0.5, 1.0, 2.0, 3.0, 4.0, 5.0};
+    for (int32_t i = 0; i < 6; i++) {
+        x264_log( h, X264_LOG_INFO, "\t%ds\t%d \n", aDuration[i], rc->m_iClipSizes[i] / 1000);
+    }
+}
+
 static int x264_macroblock_tree_rescale_init( x264_t *h, x264_ratecontrol_t *rc )
 {
     /* Use fractional QP array dimensions to compensate for edge padding */
