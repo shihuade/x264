@@ -1014,6 +1014,15 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
         p->rc.f_complexity_blur = atof(value);
     OPT("zones")
         p->rc.psz_zones = strdup(value);
+    OPT("preldanaly")
+        p->rc.b_preload_analyse = atoi(value) == 0 ? 0 : 1;
+    OPT("preldmaxsz")
+        p->rc.i_max_preload_size = atoi(value);
+    OPT("preldminbw")
+        p->rc.i_min_bandwidth = atoi(value);
+    OPT("preldmaxbw")
+        p->rc.i_max_bandwidth = atoi(value);
+
     OPT("crop-rect")
         b_error |= sscanf( value, "%u,%u,%u,%u", &p->crop_rect.i_left, &p->crop_rect.i_top,
                                                  &p->crop_rect.i_right, &p->crop_rect.i_bottom ) != 4;

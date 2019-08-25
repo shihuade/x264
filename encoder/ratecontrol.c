@@ -69,6 +69,26 @@ typedef struct
     float offset;
 } predictor_t;
 
+typedef struct {
+    int iVBVBufferSize;
+    int iVBVMaxBitRate;
+    int iVBVBufferRate;
+    int iVBVBufferFill;
+    int  bOverflowFlag;
+} TVBVStatus;
+
+typedef struct  {
+    int iMinBandWidth;
+    int iMaxBandWidth;
+    int iMaxPreLoadSize;
+
+    int iNumBandWidth;
+    int iTotalVBV;
+    int* pVBVBandWidth;
+    int* pVBVLenNum;
+    TVBVStatus* pVBVStatusList;
+} TVBVStatic;
+
 struct x264_ratecontrol_t
 {
     /* constants */
@@ -102,6 +122,9 @@ struct x264_ratecontrol_t
     predictor_t *pred;          /* predict frame size from satd */
     int single_frame_vbv;
     float rate_factor_max_increment; /* Don't allow RF above (CRF + this value). */
+
+    int m_iClipSizes[6];       /* bits size for duration 0.5/1/2/3/4/5s */
+    TVBVStatic sVBVStatic;     /* for preload size analyse */
 
     /* ABR stuff */
     int    last_satd;
@@ -410,6 +433,65 @@ void x264_adaptive_quant_frame( x264_t *h, x264_frame_t *frame, float *quant_off
         int width  = 16*h->mb.i_mb_width  >> (i && CHROMA_H_SHIFT);
         int height = 16*h->mb.i_mb_height >> (i && CHROMA_V_SHIFT);
         frame->i_pixel_ssd[i] = ssd - (sum * sum + width * height / 2) / (width * height);
+    }
+}
+
+static void initVBVStatInfo(x264_t* param, TVBVStatic* pVBVStat)
+{
+    memset(pVBVStat, 0, sizeof(TVBVStatic));
+    for (int32_t i = 0; i < 6; i++) {
+        m_iClipSizes[i] = 0;
+    }
+
+    if (param->bPreloadAnalyse == false) {
+        return;
+    }
+
+    int32_t iVBVSizeStep = 200000;
+    int32_t iBandwidthStep = 200000;
+
+    pVBVStat->iMinBandWidth = V_CLIP3(200000, 1000000, param->iMinBandWidth * 1000);
+    pVBVStat->iMaxBandWidth = V_CLIP3(4000000, 10000000, param->iMaxBandWidth * 1000);
+    pVBVStat->iMaxBandWidth = V_MAX(pVBVStat->iMinBandWidth + 10 * iBandwidthStep, pVBVStat->iMaxBandWidth);
+    pVBVStat->iMaxPreLoadSize = V_CLIP3(pVBVStat->iMaxBandWidth * 4, pVBVStat->iMaxBandWidth * 10, param->iMaxBandWidth * 1000);
+    pVBVStat->iNumBandWidth = (pVBVStat->iMaxBandWidth - pVBVStat->iMinBandWidth + iBandwidthStep - 1) / iBandwidthStep + 1;
+
+    //to do, unify with mempool later
+    pVBVStat->iTotalVBV = 0;
+    pVBVStat->pVBVBandWidth = new int32_t [pVBVStat->iNumBandWidth];
+    pVBVStat->pVBVLenNum = new int32_t [pVBVStat->iNumBandWidth];
+
+    int32_t iStartSize = 0;
+    for (int32_t i = 0; i < pVBVStat->iNumBandWidth; i++) {
+        pVBVStat->pVBVBandWidth[i] = pVBVStat->iMinBandWidth + iBandwidthStep * i;
+
+        iStartSize = V_MIN(pVBVStat->iMinBandWidth, pVBVStat->pVBVBandWidth[i] >> 1);
+        pVBVStat->pVBVLenNum[i] = (pVBVStat->iMaxPreLoadSize - iStartSize + iVBVSizeStep - 1) / iVBVSizeStep + 1;
+        pVBVStat->iTotalVBV += pVBVStat->pVBVLenNum[i];
+    }
+
+    pVBVStat->pVBVStatusList = new TVBVStatus [pVBVStat->iTotalVBV];
+    memset(pVBVStat->pVBVStatusList, 0, sizeof(TVBVStatus) * pVBVStat->iTotalVBV);
+
+    int32_t iIdxOffset = 0;
+    int32_t iBufRate = 0;
+    double fInitRatio = 1.0;
+    double fFrameRate = V_MAX(0.01, param->frameRate);
+    TVBVStatus* pVBV = NULL;
+
+    for (int32_t i = 0; i < pVBVStat->iNumBandWidth; i++) {
+        iBufRate = pVBVStat->pVBVBandWidth[i] / fFrameRate;
+        iStartSize = V_MIN(pVBVStat->iMinBandWidth << 1, pVBVStat->pVBVBandWidth[i] >> 1);
+
+        for (int32_t j = 0; j < pVBVStat->pVBVLenNum[i]; j++) {
+            pVBV = &pVBVStat->pVBVStatusList[iIdxOffset + j];
+            pVBV->iVBVBufferSize = iStartSize + iVBVSizeStep * j;
+            pVBV->iVBVMaxBitRate = pVBVStat->pVBVBandWidth[i];
+            pVBV->iVBVBufferFill = pVBV->iVBVBufferSize * fInitRatio;
+            pVBV->iVBVBufferRate = iBufRate;
+            pVBV->bOverflowFlag = false;
+        }
+        iIdxOffset += pVBVStat->pVBVLenNum[i];
     }
 }
 

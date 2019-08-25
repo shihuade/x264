@@ -739,6 +739,12 @@ static void help( x264_param_t *defaults, int longhelp )
         "                                  - 3: Auto-variance AQ with bias to dark scenes\n", defaults->rc.i_aq_mode );
     H1( "      --aq-strength <float>   Reduces blocking and blurring in flat and\n"
         "                              textured areas. [%.1f]\n", defaults->rc.f_aq_strength );
+
+    H0( "      --preld <integer>        preload size analyse, default [%d] \n", 0, defaults->rc.b_preload_analyse );
+    H0( "      --maxpreldsz <integer>   max preload buff size for preload vbv analyse, default [%d] \n", 0, defaults->rc.b_preload_analyse );
+    H0( "      --preldminbw <integer>   min bandwidth for preload vbv analyse, default [%d] \n", 0, defaults->rc.b_preload_analyse );
+    H0( "      --preldmaxbw <integer>   max bandwidth for preload vbv analyse, default [%d] \n", 0, defaults->rc.b_preload_analyse );
+
     H1( "\n" );
     H0( "  -p, --pass <integer>        Enable multipass ratecontrol\n"
         "                                  - 1: First pass, creates stats file\n"
@@ -1079,6 +1085,10 @@ static struct option long_options[] =
     { "no-mbtree",         no_argument, NULL, 0 },
     { "qblur",       required_argument, NULL, 0 },
     { "cplxblur",    required_argument, NULL, 0 },
+    { "preldanaly",  required_argument, NULL, 0 },
+    { "preldmaxsz",  required_argument, NULL, 0 },
+    { "preldminbw",  required_argument, NULL, 0 },
+    { "preldmaxbw",  required_argument, NULL, 0 },
     { "zones",       required_argument, NULL, 0 },
     { "qpfile",      required_argument, NULL, OPT_QPFILE },
     { "threads",     required_argument, NULL, 0 },

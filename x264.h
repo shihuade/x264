@@ -443,6 +443,11 @@ typedef struct x264_param_t
         x264_zone_t *zones;         /* ratecontrol overrides */
         int         i_zones;        /* number of zone_t's */
         char        *psz_zones;     /* alternate method of specifying zones */
+
+        int         b_preload_analyse;   /* preload size for on-demand case */
+        int         i_max_preload_size;  /* max preload buff size for preload vbv analyse */
+        int         i_min_bandwidth;     /* min bandwidth for preload vbv analyse */
+        int         i_max_bandwidth;     /* max bandwidth for preload vbv analyse */
     } rc;
 
     /* Cropping Rectangle parameters: added to those implicitly defined by
