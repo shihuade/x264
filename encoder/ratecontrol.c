@@ -522,10 +522,10 @@ void OutputVBVStatInfo( x264_t *h, x264_ratecontrol_t *rc )
         iIdxOffset += pVBVStat->pVBVLenNum[i];
     }
 
-    x264_log( h, X264_LOG_INFO, "\tduraion(s)\tvideosize(kbps)");
+    x264_log( h, X264_LOG_INFO, "\tduraion(s)\tvideosize(kbps) \n");
     double aDuration[6] = {0.5, 1.0, 2.0, 3.0, 4.0, 5.0};
     for (int32_t i = 0; i < 6; i++) {
-        x264_log( h, X264_LOG_INFO, "\t%ds\t%d \n", aDuration[i], rc->m_iClipSizes[i] / 1000);
+        x264_log( h, X264_LOG_INFO, "\t%fs\t%d \n", aDuration[i], rc->m_iClipSizes[i] / 1000);
     }
 }
 
@@ -564,6 +564,7 @@ void updateVBVStaticForAll(x264_ratecontrol_t *rc, uint32_t iFrameBits)
     TVBVStatus* pVBV = NULL;
     TVBVStatic* pVBVStat = &rc->sVBVStatic;
 
+    //printf(" iFrameBits=%d \n", iFrameBits);
     int32_t iIdxOffset = 0;
     for (int32_t i = 0; i < pVBVStat->iNumBandWidth; i++) {
         for (int32_t j = 0; j < pVBVStat->pVBVLenNum[i]; j++) {
@@ -578,17 +579,19 @@ void updateVBVStaticForAll(x264_ratecontrol_t *rc, uint32_t iFrameBits)
 
     double aDuration[6] = {0.5, 1.0, 2.0, 3.0, 4.0, 5.0};
     double fFrameRate = X264_MAX(0.01, rc->fps);
+    double fDuration = (rc->iFramesDone + 1) / fFrameRate;
 
-    double fDuration = (rc->iFramesDone + 1) / rc->fps;
+    //printf("\n fDuration=%f,  rc->iFramesDone=%d \n", fDuration,  rc->iFramesDone);
     for (int32_t i = 0; i < 6; i++) {
         if (fDuration <= aDuration[i]) {
             rc->m_iClipSizes[i] += iFrameBits;
+            //printf( " %2d, iFrameBits=%d, totalBits = %d \n", i, iFrameBits, rc->m_iClipSizes[i]);
         }
     }
-
     rc->iFramesDone++;
-//        outputVBVStatic(pVBVStat);
-//        printf(" \n");
+
+    //outputVBVStatic(pVBVStat);
+    //printf(" \n");
 }
 
 static void freeVBVStatInfo(x264_t *h, x264_ratecontrol_t *rc)
