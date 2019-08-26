@@ -123,6 +123,7 @@ struct x264_ratecontrol_t
     int single_frame_vbv;
     float rate_factor_max_increment; /* Don't allow RF above (CRF + this value). */
 
+    int iFramesDone;
     int m_iClipSizes[6];       /* bits size for duration 0.5/1/2/3/4/5s */
     TVBVStatic sVBVStatic;     /* for preload size analyse */
 
@@ -438,6 +439,7 @@ void x264_adaptive_quant_frame( x264_t *h, x264_frame_t *frame, float *quant_off
 
 static int initVBVStatInfo(x264_t* h, x264_ratecontrol_t *rc)
 {
+    rc->iFramesDone = 0;
     memset(&rc->sVBVStatic, 0, sizeof(TVBVStatic));
     for (int32_t i = 0; i < 6; i++) {
        rc->m_iClipSizes[i] = 0;
@@ -476,7 +478,7 @@ static int initVBVStatInfo(x264_t* h, x264_ratecontrol_t *rc)
     int32_t iIdxOffset = 0;
     int32_t iBufRate = 0;
     double fInitRatio = 1.0;
-    double fFrameRate = V_MAX(0.01, rc->fps);
+    double fFrameRate = X264_MAX(0.01, rc->fps);
     TVBVStatus* pVBV = NULL;
 
     for (int32_t i = 0; i < pVBVStat->iNumBandWidth; i++) {
@@ -543,6 +545,52 @@ void OutputVBVStatInfo( x264_t *h, x264_ratecontrol_t *rc )
     for (int32_t i = 0; i < 6; i++) {
         x264_log( h, X264_LOG_INFO, "\t%ds\t%d \n", aDuration[i], rc->m_iClipSizes[i] / 1000);
     }
+}
+
+static void updateVBVStatus(TVBVStatus* pVBV, uint32_t iFrameBits)
+{
+    pVBV->iVBVBufferFill -= iFrameBits;
+    if (pVBV->iVBVBufferFill <= 0) {
+        pVBV->bOverflowFlag = 1;
+        return;
+    }
+
+    //pVBV->iVBVBufferFill = V_MAX(pVBV->iVBVBufferFill, 0);
+    pVBV->iVBVBufferFill += pVBV->iVBVBufferRate;
+    pVBV->iVBVBufferFill = X264_MIN(pVBV->iVBVBufferFill, pVBV->iVBVBufferSize);
+}
+
+
+void updateVBVStaticForAll(x264_ratecontrol_t *rc, uint32_t iFrameBits)
+{
+    TVBVStatus* pVBV = NULL;
+    TVBVStatic* pVBVStat = &rc->sVBVStatic;
+
+    int32_t iIdxOffset = 0;
+    for (int32_t i = 0; i < pVBVStat->iNumBandWidth; i++) {
+        for (int32_t j = 0; j < pVBVStat->pVBVLenNum[i]; j++) {
+            pVBV = &pVBVStat->pVBVStatusList[iIdxOffset + j];
+            if (pVBV->bOverflowFlag) {
+                continue;
+            }
+            updateVBVStatus(pVBV, iFrameBits);
+        }
+        iIdxOffset += pVBVStat->pVBVLenNum[i];
+    }
+
+    double aDuration[6] = {0.5, 1.0, 2.0, 3.0, 4.0, 5.0};
+    double fFrameRate = X264_MAX(0.01, rc->fps);
+
+    double fDuration = (rc->iFramesDone + 1) / rc->fps;
+    for (int32_t i = 0; i < 6; i++) {
+        if (fDuration <= aDuration[i]) {
+            rc->m_iClipSizes[i] += iFrameBits;
+        }
+    }
+
+    rc->iFramesDone++;
+    //    outputVBVStatic(pVBVStat);
+    //    printf(" \n");
 }
 
 static int x264_macroblock_tree_rescale_init( x264_t *h, x264_ratecontrol_t *rc )
