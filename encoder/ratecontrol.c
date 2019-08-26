@@ -453,10 +453,10 @@ static int initVBVStatInfo(x264_t* h, x264_ratecontrol_t *rc)
     int32_t iVBVSizeStep = 200000;
     int32_t iBandwidthStep = 200000;
 
-    pVBVStat->iMinBandWidth = V_CLIP3(200000, 1000000, h->param.rc.i_min_bandwidth * 1000);
-    pVBVStat->iMaxBandWidth = V_CLIP3(4000000, 10000000, h->param.rc.i_max_bandwidth * 1000);
-    pVBVStat->iMaxBandWidth = V_MAX(pVBVStat->iMinBandWidth + 10 * iBandwidthStep, pVBVStat->iMaxBandWidth);
-    pVBVStat->iMaxPreLoadSize = V_CLIP3(pVBVStat->iMaxBandWidth * 4, pVBVStat->iMaxBandWidth * 10, h->param.rc.i_max_preload_size * 1000);
+    pVBVStat->iMinBandWidth = x264_clip3( h->param.rc.i_min_bandwidth * 1000, 200000, 1000000);
+    pVBVStat->iMaxBandWidth = x264_clip3( h->param.rc.i_max_bandwidth * 1000, 4000000, 10000000);
+    pVBVStat->iMaxBandWidth = X264_MAX(pVBVStat->iMinBandWidth + 10 * iBandwidthStep, pVBVStat->iMaxBandWidth);
+    pVBVStat->iMaxPreLoadSize = x264_clip3( h->param.rc.i_max_preload_size * 1000, pVBVStat->iMaxBandWidth * 4, pVBVStat->iMaxBandWidth * 10);
     pVBVStat->iNumBandWidth = (pVBVStat->iMaxBandWidth - pVBVStat->iMinBandWidth + iBandwidthStep - 1) / iBandwidthStep + 1;
 
     CHECKED_MALLOCZERO( pVBVStat->pVBVBandWidth, pVBVStat->iNumBandWidth * sizeof(int) );
@@ -464,12 +464,14 @@ static int initVBVStatInfo(x264_t* h, x264_ratecontrol_t *rc)
 
     int32_t iStartSize = 0;
     pVBVStat->iTotalVBV = 0;
+
     for (int32_t i = 0; i < pVBVStat->iNumBandWidth; i++) {
         pVBVStat->pVBVBandWidth[i] = pVBVStat->iMinBandWidth + iBandwidthStep * i;
 
-        iStartSize = V_MIN(pVBVStat->iMinBandWidth, pVBVStat->pVBVBandWidth[i] >> 1);
+        iStartSize = X264_MIN(pVBVStat->iMinBandWidth, pVBVStat->pVBVBandWidth[i] >> 1);
         pVBVStat->pVBVLenNum[i] = (pVBVStat->iMaxPreLoadSize - iStartSize + iVBVSizeStep - 1) / iVBVSizeStep + 1;
         pVBVStat->iTotalVBV += pVBVStat->pVBVLenNum[i];
+        //printf( "[%2d], bw=%8d, iStartSize=%8d, vbvlen=%d \n", i,  pVBVStat->pVBVBandWidth[i], iStartSize, pVBVStat->pVBVLenNum[i]);
     }
 
     CHECKED_MALLOCZERO( pVBVStat->pVBVStatusList, pVBVStat->iTotalVBV * sizeof(TVBVStatus) );
@@ -483,7 +485,7 @@ static int initVBVStatInfo(x264_t* h, x264_ratecontrol_t *rc)
 
     for (int32_t i = 0; i < pVBVStat->iNumBandWidth; i++) {
         iBufRate = pVBVStat->pVBVBandWidth[i] / fFrameRate;
-        iStartSize = V_MIN(pVBVStat->iMinBandWidth << 1, pVBVStat->pVBVBandWidth[i] >> 1);
+        iStartSize = X264_MIN(pVBVStat->iMinBandWidth << 1, pVBVStat->pVBVBandWidth[i] >> 1);
 
         for (int32_t j = 0; j < pVBVStat->pVBVLenNum[i]; j++) {
             pVBV = &pVBVStat->pVBVStatusList[iIdxOffset + j];
@@ -500,26 +502,6 @@ static int initVBVStatInfo(x264_t* h, x264_ratecontrol_t *rc)
 
 fail:
     return -1;
-}
-
-static void freeVBVStatInfo(x264_ratecontrol_t *rc)
-{
-    TVBVStatic* pVBVStat = &rc->sVBVStatic;
-    if (pVBVStat->pVBVBandWidth) {
-        x264_free( pVBVStat->pVBVBandWidth );
-        pVBVStat->pVBVBandWidth = NULL;
-    }
-
-    if (pVBVStat->pVBVBandWidth) {
-        x264_free( pVBVStat->pVBVLenNum );
-        pVBVStat->pVBVLenNum = NULL;
-    }
-
-    if (pVBVStat->pVBVStatusList) {
-        x264_free( pVBVStat->pVBVStatusList );
-        pVBVStat->pVBVStatusList = NULL;
-    }
-
 }
 
 void OutputVBVStatInfo( x264_t *h, x264_ratecontrol_t *rc )
@@ -547,6 +529,22 @@ void OutputVBVStatInfo( x264_t *h, x264_ratecontrol_t *rc )
     }
 }
 
+void outputVBVStatic(TVBVStatic* pVBVStat)
+{
+    int32_t iIdxOffset = 0;
+    TVBVStatus* pVBV = NULL;
+
+    for (int32_t i = 0; i < pVBVStat->iNumBandWidth; i++) {
+        for (int32_t j = 0; j < pVBVStat->pVBVLenNum[i]; j++) {
+            pVBV = &pVBVStat->pVBVStatusList[iIdxOffset + j];
+            printf("  [%2d][%2d] bw=%7d, bufsize=%8d, bufR=%8d, VbbvFill=%8d, overflowFlag=%d,  \n",
+                   i, j, pVBV->iVBVMaxBitRate, pVBV->iVBVBufferSize, pVBV->iVBVBufferRate,
+                   pVBV->iVBVBufferFill, pVBV->bOverflowFlag);
+        }
+        iIdxOffset += pVBVStat->pVBVLenNum[i];
+    }
+}
+
 static void updateVBVStatus(TVBVStatus* pVBV, uint32_t iFrameBits)
 {
     pVBV->iVBVBufferFill -= iFrameBits;
@@ -555,7 +553,7 @@ static void updateVBVStatus(TVBVStatus* pVBV, uint32_t iFrameBits)
         return;
     }
 
-    //pVBV->iVBVBufferFill = V_MAX(pVBV->iVBVBufferFill, 0);
+    //pVBV->iVBVBufferFill = X264_MAX(pVBV->iVBVBufferFill, 0);
     pVBV->iVBVBufferFill += pVBV->iVBVBufferRate;
     pVBV->iVBVBufferFill = X264_MIN(pVBV->iVBVBufferFill, pVBV->iVBVBufferSize);
 }
@@ -589,8 +587,32 @@ void updateVBVStaticForAll(x264_ratecontrol_t *rc, uint32_t iFrameBits)
     }
 
     rc->iFramesDone++;
-    //    outputVBVStatic(pVBVStat);
-    //    printf(" \n");
+//        outputVBVStatic(pVBVStat);
+//        printf(" \n");
+}
+
+static void freeVBVStatInfo(x264_t *h, x264_ratecontrol_t *rc)
+{
+    if (h->param.rc.b_preload_analyse) {
+        OutputVBVStatInfo( h, rc );
+    }
+
+    TVBVStatic* pVBVStat = &rc->sVBVStatic;
+    if (pVBVStat->pVBVBandWidth) {
+        x264_free( pVBVStat->pVBVBandWidth );
+        pVBVStat->pVBVBandWidth = NULL;
+    }
+
+    if (pVBVStat->pVBVBandWidth) {
+        x264_free( pVBVStat->pVBVLenNum );
+        pVBVStat->pVBVLenNum = NULL;
+    }
+
+    if (pVBVStat->pVBVStatusList) {
+        x264_free( pVBVStat->pVBVStatusList );
+        pVBVStat->pVBVStatusList = NULL;
+    }
+
 }
 
 static int x264_macroblock_tree_rescale_init( x264_t *h, x264_ratecontrol_t *rc )
@@ -822,6 +844,8 @@ void x264_ratecontrol_init_reconfigurable( x264_t *h, int b_init )
         double mbtree_offset = h->param.rc.b_mb_tree ? (1.0-h->param.rc.f_qcompress)*13.5 : 0;
         rc->rate_factor_constant = pow( base_cplx, 1 - rc->qcompress )
                                  / qp2qscale( h->param.rc.f_rf_constant + mbtree_offset + QP_BD_OFFSET );
+
+        initVBVStatInfo( h, rc);
     }
 
     if( h->param.rc.i_vbv_max_bitrate > 0 && h->param.rc.i_vbv_buffer_size > 0 )
@@ -1566,6 +1590,9 @@ void x264_ratecontrol_delete( x264_t *h )
     x264_free( rc->entry );
     x264_free( rc->entry_out );
     x264_macroblock_tree_rescale_destroy( rc );
+
+    freeVBVStatInfo( h, rc);
+
     if( rc->zones )
     {
         x264_free( rc->zones[0].param );
@@ -2112,6 +2139,9 @@ int x264_ratecontrol_end( x264_t *h, int bits, int *filler )
 
     *filler = update_vbv( h, bits );
     rc->filler_bits_sum += *filler * 8;
+    if (h->param.rc.b_preload_analyse) {
+        updateVBVStaticForAll(rc, bits);
+    }
 
     if( h->sps->vui.b_nal_hrd_parameters_present )
     {

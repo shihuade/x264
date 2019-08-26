@@ -111,6 +111,10 @@ void x264_param_default( x264_param_t *param )
     param->rc.i_aq_mode = X264_AQ_VARIANCE;
     param->rc.f_aq_strength = 1.0;
     param->rc.i_lookahead = 40;
+    param->rc.b_preload_analyse = 0;
+    param->rc.i_max_preload_size = 0;
+    param->rc.i_min_bandwidth = 0;
+    param->rc.i_max_bandwidth = 0;
 
     param->rc.b_stat_write = 0;
     param->rc.psz_stat_out = "x264_2pass.log";
