@@ -2365,14 +2365,24 @@ static void x264_fdec_filter_row( x264_t *h, int mb_y, int pass )
 
     if( b_measure_quality )
     {
+        int64_t issd = 0;
         maxpix_y = X264_MIN( maxpix_y, h->param.i_height );
         if( h->param.analyse.b_psnr )
         {
             for( int p = 0; p < (CHROMA444 ? 3 : 1); p++ )
-                h->stat.frame.i_ssd[p] += x264_pixel_ssd_wxh( &h->pixf,
+            {
+                issd = x264_pixel_ssd_wxh( &h->pixf,
                     h->fdec->plane[p] + minpix_y * h->fdec->i_stride[p], h->fdec->i_stride[p],
                     h->fenc->plane[p] + minpix_y * h->fenc->i_stride[p], h->fenc->i_stride[p],
                     h->param.i_width, maxpix_y-minpix_y );
+                h->stat.frame.i_ssd[p]  += issd;
+                if (issd > 0) {
+                    h->stat.frame.f_psnr_stripe[mb_y - 1] =  -10.00 * log10(issd / (h->param.i_width * (maxpix_y - minpix_y) * 255.0 * 255.0));
+                } else {
+                    h->stat.frame.f_psnr_stripe[mb_y - 1] = 99.9999;
+                }
+            }
+
             if( !CHROMA444 )
             {
                 uint64_t ssd_u, ssd_v;
@@ -3947,6 +3957,11 @@ static int x264_encoder_frame_end( x264_t *h, x264_t *thread_current,
         h->stat.f_psnr_mean_u[h->sh.i_type]  += dur * pic_out->prop.f_psnr[1];
         h->stat.f_psnr_mean_v[h->sh.i_type]  += dur * pic_out->prop.f_psnr[2];
 
+        for (int i = 0; i <   h->mb.i_mb_height; i++)
+        {
+            h->stat.f_psnr_stripe[i] += h->stat.frame.f_psnr_stripe[i] * dur;
+        }
+
         snprintf( psz_message, 80, " PSNR Y:%5.2f U:%5.2f V:%5.2f", pic_out->prop.f_psnr[0],
                                                                     pic_out->prop.f_psnr[1],
                                                                     pic_out->prop.f_psnr[2] );
@@ -4322,6 +4337,17 @@ void    x264_encoder_close  ( x264_t *h )
                       SUM3( h->stat.f_psnr_average ) / duration,
                       x264_psnr( SUM3( h->stat.f_ssd_global ), duration * i_yuv_size ),
                       f_bitrate );
+
+            const int32_t kSize = 2056;
+            char buff[kSize] = {0};
+            x264_log( h, X264_LOG_INFO, "quality stripe: mb_height=%d\n", h->mb.i_mb_height);
+            snprintf(buff, kSize, "quality stripe:");
+
+            for (int i = 0; i < h->mb.i_mb_height; i++)
+            {
+                snprintf(buff + strlen(buff), kSize - strlen(buff), "%5.3f,", h->stat.f_psnr_stripe[i] / duration );
+            }
+            x264_log( h, X264_LOG_INFO, "%s", buff);
         }
         else
             x264_log( h, X264_LOG_INFO, "kb/s:%.2f\n", f_bitrate );

@@ -96,6 +96,9 @@ do {\
 #define X264_LOOKAHEAD_QP (12+QP_BD_OFFSET)
 #define SPEC_QP(x) X264_MIN((x), QP_MAX_SPEC)
 
+#define MAX_CU_IN_HIGHT 400
+
+
 // number of pixels (per thread) in progress at any given time.
 // 16 for the macroblock in progress + 3 for deblocking + 3 for motion compensation filter + 2 for extra safety
 #define X264_THREAD_HEIGHT 24
@@ -479,6 +482,7 @@ typedef struct
     /* Metrics */
     int64_t i_ssd[3];
     double f_ssim;
+    double f_psnr_stripe[MAX_CU_IN_HIGHT];
     int i_ssim_cnt;
 } x264_frame_stat_t;
 
@@ -906,6 +910,7 @@ struct x264_t
         double  f_psnr_mean_u[3];
         double  f_psnr_mean_v[3];
         double  f_ssim_mean_y[3];
+        double  f_psnr_stripe[MAX_CU_IN_HIGHT];
         double  f_frame_duration[3];
         /* */
         int64_t i_mb_count[3][19];
